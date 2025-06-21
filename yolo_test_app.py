@@ -73,6 +73,7 @@ def init_database():
             creator TEXT NOT NULL,
             model_path TEXT NOT NULL,
             class_names TEXT NOT NULL,
+            color_config TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -135,7 +136,7 @@ def show_installation_instructions():
     The app will work normally once the dependencies are installed.
     """)
 
-def save_project_to_db(name, creator, model_file, class_names_file):
+def save_project_to_db(name, creator, model_file, class_names_file, color_config_file=None):
     """Save project information to database"""
     conn = sqlite3.connect('yolo_projects.db')
     cursor = conn.cursor()
@@ -146,6 +147,11 @@ def save_project_to_db(name, creator, model_file, class_names_file):
     # Read class names file
     class_names_content = class_names_file.read().decode('utf-8')
     
+    # Read color config file if provided
+    color_config_content = ""
+    if color_config_file:
+        color_config_content = color_config_file.read().decode('utf-8')
+    
     # Save model to temporary file
     temp_model_path = f"models/{name}_{creator}.pt"
     os.makedirs("models", exist_ok=True)
@@ -153,9 +159,9 @@ def save_project_to_db(name, creator, model_file, class_names_file):
         f.write(model_bytes)
     
     cursor.execute('''
-        INSERT INTO projects (name, creator, model_path, class_names)
-        VALUES (?, ?, ?, ?)
-    ''', (name, creator, temp_model_path, class_names_content))
+        INSERT INTO projects (name, creator, model_path, class_names, color_config)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (name, creator, temp_model_path, class_names_content, color_config_content))
     
     conn.commit()
     conn.close()
@@ -206,7 +212,36 @@ def delete_image_from_db(image_id):
     conn.close()
     return True
 
-def process_image_with_yolo(image, model_path, class_names):
+def parse_color_config(color_config_content):
+    """Parse color configuration file and return color mapping"""
+    color_map = {}
+    if not color_config_content:
+        return color_map
+    
+    try:
+        lines = color_config_content.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                parts = line.split(':')
+                if len(parts) >= 2:
+                    class_name = parts[0].strip()
+                    color = parts[1].strip()
+                    color_map[class_name] = color
+    except Exception as e:
+        st.warning(f"Error parsing color config: {e}")
+    
+    return color_map
+
+def get_default_colors():
+    """Get default colors for bounding boxes"""
+    return [
+        "red", "blue", "green", "yellow", "purple", "orange", 
+        "cyan", "magenta", "lime", "pink", "brown", "gray",
+        "navy", "olive", "teal", "maroon", "fuchsia", "aqua"
+    ]
+
+def process_image_with_yolo(image, model_path, class_names, color_config_content=""):
     """Process image with YOLO model and return detection results"""
     if not YOLO_AVAILABLE:
         st.error("YOLO is not available. Please install the required system libraries first.")
@@ -222,9 +257,30 @@ def process_image_with_yolo(image, model_path, class_names):
         # Get class names as list
         class_names_list = [name.strip() for name in class_names.split('\n') if name.strip()]
         
+        # Parse color configuration
+        color_map = parse_color_config(color_config_content)
+        default_colors = get_default_colors()
+        
         # Process results
         processed_image = image.copy()
         draw = ImageDraw.Draw(processed_image)
+        
+        # Try to load a font for larger text
+        try:
+            # Try to use a larger font if available
+            font_size = 24  # 2x larger than default
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+            except:
+                try:
+                    font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", font_size)
+                except:
+                    try:
+                        font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", font_size)
+                    except:
+                        font = ImageFont.load_default()
+        except:
+            font = ImageFont.load_default()
         
         detection_data = []
         
@@ -243,17 +299,42 @@ def process_image_with_yolo(image, model_path, class_names):
                     # Get class name
                     class_name = class_names_list[class_id] if class_id < len(class_names_list) else f"Class {class_id}"
                     
-                    # Draw bounding box
-                    draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
+                    # Get color for this class
+                    if class_name in color_map:
+                        color = color_map[class_name]
+                    else:
+                        # Use default color based on class ID
+                        color = default_colors[class_id % len(default_colors)]
                     
-                    # Draw label
+                    # Draw bounding box with thicker lines
+                    draw.rectangle([x1, y1, x2, y2], outline=color, width=4)
+                    
+                    # Draw label with larger text
                     label = f"{class_name}: {confidence:.2f}"
-                    draw.text((x1, y1-20), label, fill="red")
+                    
+                    # Get text size for background
+                    try:
+                        bbox = draw.textbbox((0, 0), label, font=font)
+                        text_width = bbox[2] - bbox[0]
+                        text_height = bbox[3] - bbox[1]
+                    except:
+                        # Fallback if textbbox is not available
+                        text_width = len(label) * 12
+                        text_height = 20
+                    
+                    # Draw background rectangle for text
+                    text_bg_y1 = max(0, y1 - text_height - 5)
+                    text_bg_y2 = y1
+                    draw.rectangle([x1, text_bg_y1, x1 + text_width + 10, text_bg_y2], fill=color)
+                    
+                    # Draw text
+                    draw.text((x1 + 5, text_bg_y1 + 2), label, fill="white", font=font)
                     
                     detection_data.append({
                         'class_name': class_name,
                         'confidence': confidence,
-                        'bbox': [x1, y1, x2, y2]
+                        'bbox': [x1, y1, x2, y2],
+                        'color': color
                     })
         
         return processed_image, detection_data
@@ -330,6 +411,17 @@ def main():
                 with st.expander(f"{project[1]} (by {project[2]}) - Created: {project[5]}"):
                     st.write(f"**Project ID:** {project[0]}")
                     st.write(f"**Model:** {os.path.basename(project[3])}")
+                    st.write(f"**Class Names:**")
+                    class_names_preview = project[4][:100] + "..." if len(project[4]) > 100 else project[4]
+                    st.code(class_names_preview)
+                    
+                    # Show color configuration if available
+                    if len(project) > 5 and project[5]:
+                        st.write(f"**Color Configuration:**")
+                        color_config_preview = project[5][:100] + "..." if len(project[5]) > 100 else project[5]
+                        st.code(color_config_preview)
+                    else:
+                        st.write("**Color Configuration:** Using default colors")
                     images = get_project_images(project[0])
                     st.metric("Images Processed", len(images))
         
@@ -362,18 +454,30 @@ def main():
                 help="Upload a text file with class names (one per line)"
             )
             
+            st.subheader("Upload Color Configuration (Optional)")
+            color_config_file = st.file_uploader(
+                "Upload Color Configuration File (.txt)",
+                type=['txt'],
+                help="Upload a text file with class colors (format: class_name:color, one per line)"
+            )
+            
+            if color_config_file:
+                st.info("**Color Configuration Format:**")
+                st.code("person:red\ncar:blue\ndog:green\ncat:yellow")
+                st.write("**Available colors:** red, blue, green, yellow, purple, orange, cyan, magenta, lime, pink, brown, gray, navy, olive, teal, maroon, fuchsia, aqua")
+            
             submit_button = st.form_submit_button("Create Project")
             
             if submit_button:
                 if project_name and creator_name and model_file and class_names_file:
                     try:
-                        project_id = save_project_to_db(project_name, creator_name, model_file, class_names_file)
+                        project_id = save_project_to_db(project_name, creator_name, model_file, class_names_file, color_config_file)
                         st.success(f"Project '{project_name}' created successfully!")
                         st.info(f"Project ID: {project_id}")
                     except Exception as e:
                         st.error(f"Error creating project: {str(e)}")
                 else:
-                    st.error("Please fill in all fields and upload both model and class names files.")
+                    st.error("Please fill in all required fields and upload both model and class names files.")
     
     elif page == "Upload Images":
         st.header("Upload and Process Images")
@@ -394,8 +498,15 @@ def main():
         selected_project = [p for p in projects if p[0] == selected_project_id][0]
         model_path = selected_project[3]
         class_names = selected_project[4]
+        color_config = selected_project[5] if len(selected_project) > 5 else ""
         
         st.info(f"Selected Project: {selected_project[1]} | Model: {os.path.basename(model_path)}")
+        
+        # Show color configuration info
+        if color_config:
+            st.info("🎨 Custom color configuration loaded for this project")
+        else:
+            st.info("🎨 Using default colors for bounding boxes")
         
         # Image upload
         uploaded_files = st.file_uploader(
@@ -415,7 +526,7 @@ def main():
                     
                     # Process with YOLO
                     processed_image, detection_results = process_image_with_yolo(
-                        image, model_path, class_names
+                        image, model_path, class_names, color_config
                     )
                     
                     # Save to database
@@ -627,6 +738,14 @@ def main():
                     st.write(f"**Class Names:**")
                     class_names_preview = project[4][:100] + "..." if len(project[4]) > 100 else project[4]
                     st.code(class_names_preview)
+                    
+                    # Show color configuration if available
+                    if len(project) > 5 and project[5]:
+                        st.write(f"**Color Configuration:**")
+                        color_config_preview = project[5][:100] + "..." if len(project[5]) > 100 else project[5]
+                        st.code(color_config_preview)
+                    else:
+                        st.write("**Color Configuration:** Using default colors")
                 
                 with col2:
                     # Get image count for this project

@@ -1,0 +1,24 @@
+# Color Configuration File for YOLO Object Detection
+# Format: class_name:color
+# One entry per line, lines starting with # are comments
+
+person:red
+car:blue
+dog:green
+cat:yellow
+bicycle:purple
+motorcycle:orange
+bus:cyan
+truck:magenta
+bird:lime
+horse:pink
+sheep:brown
+cow:gray
+elephant:navy
+bear:olive
+zebra:teal
+giraffe:maroon
+backpack:fuchsia
+umbrella:aqua
+handbag:red
+tie:blue 

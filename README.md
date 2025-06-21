@@ -7,10 +7,11 @@ A comprehensive Streamlit application for managing custom-trained YOLO object de
 - **Project Management**: Create and manage multiple YOLO projects
 - **Custom Model Support**: Upload your own custom-trained YOLO models in PyTorch format
 - **Class Name Management**: Upload text files with custom class names
+- **Color Configuration**: Upload custom color mappings for bounding boxes
 - **Image Processing**: Upload and process images with YOLO detection
 - **Database Storage**: All projects and images are stored in SQLite database
 - **Image Gallery**: View all processed images with detection results
-- **Bounding Box Visualization**: Display detected objects with bounding boxes and labels
+- **Bounding Box Visualization**: Display detected objects with colored bounding boxes and large labels
 - **Detection Results**: View detailed detection results with confidence scores
 
 ## Installation
@@ -39,7 +40,8 @@ A comprehensive Streamlit application for managing custom-trained YOLO object de
 2. Enter project name and creator name
 3. Upload your custom-trained YOLO model (.pt file)
 4. Upload a text file with class names (one per line)
-5. Click "Create Project"
+5. **Optional**: Upload a color configuration file for custom bounding box colors
+6. Click "Create Project"
 
 **Example class names file (classes.txt)**:
 ```
@@ -50,6 +52,17 @@ cat
 bicycle
 ```
 
+**Example color configuration file (colors.txt)**:
+```
+person:red
+car:blue
+dog:green
+cat:yellow
+bicycle:purple
+```
+
+**Available colors**: red, blue, green, yellow, purple, orange, cyan, magenta, lime, pink, brown, gray, navy, olive, teal, maroon, fuchsia, aqua
+
 ### 2. Upload and Process Images
 
 1. Navigate to "Upload Images" in the sidebar
@@ -58,6 +71,12 @@ bicycle
 4. The app will automatically process images with YOLO detection
 5. View original and processed images side by side
 6. Check detection results in the data table
+
+**Enhanced Visualization Features:**
+- **Colored Bounding Boxes**: Each object class can have a custom color
+- **Large Text Labels**: Class names and confidence scores are displayed in 2x larger text
+- **Background Labels**: Text labels have colored backgrounds for better readability
+- **Thicker Box Lines**: Bounding boxes are drawn with thicker lines (4px) for better visibility
 
 ### 3. View Processed Images
 
@@ -153,28 +172,3 @@ sudo pacman -S mesa
    ```bash
    python fix_opencv_deps.py
    ```
-
-2. **Use headless OpenCV (no GUI features):**
-   ```bash
-   pip uninstall opencv-python
-   pip install opencv-python-headless
-   ```
-
-3. **Use Docker (recommended for consistent environment):**
-   ```bash
-   docker run -p 8501:8501 -v $(pwd):/app streamlit/streamlit:latest
-   ```
-
-4. **The app will show helpful error messages** with specific instructions for your system.
-
-**Note:** The app includes built-in error handling and will show you exactly what to do when this error occurs.
-
-### Performance Tips
-
-- Use smaller images for faster processing
-- Ensure your YOLO model is optimized for inference
-- Consider using GPU acceleration if available
-
-## License
-
-This project is open source and available under the MIT License.
