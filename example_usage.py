@@ -90,12 +90,15 @@ toothbrush"""
     print("Created sample_classes.txt with 80 COCO class names")
     return 'sample_classes.txt'
 
-def create_sample_color_config():
-    """Create a sample color configuration file"""
-    color_config = """# Color Configuration for YOLO Object Detection
-# Format: class_name:color
-# Available colors: red, blue, green, yellow, purple, orange, cyan, magenta, lime, pink, brown, gray, navy, olive, teal, maroon, fuchsia, aqua
+def create_sample_unified_config():
+    """Create a sample unified class names and colors configuration file"""
+    unified_config = """# Unified Class Names and Colors Configuration
+# This file combines class names and colors in one format
+# Format: class_name:color (for custom colors)
+# Format: class_name (for default colors)
+# Lines starting with # are comments
 
+# Classes with custom colors
 person:red
 car:blue
 dog:green
@@ -106,22 +109,76 @@ bus:cyan
 truck:magenta
 bird:lime
 horse:pink
-sheep:brown
-cow:gray
-elephant:navy
-bear:olive
-zebra:teal
-giraffe:maroon
-backpack:fuchsia
-umbrella:aqua
-handbag:red
-tie:blue"""
+
+# Classes with default colors (will use colors from the default sequence)
+sheep
+cow
+elephant
+bear
+zebra
+giraffe
+backpack
+umbrella
+handbag
+tie
+suitcase
+frisbee
+skis
+snowboard
+sports ball
+kite
+baseball bat
+baseball glove
+skateboard
+surfboard
+tennis racket
+bottle
+wine glass
+cup
+fork
+knife
+spoon
+bowl
+banana
+apple
+sandwich
+orange
+broccoli
+carrot
+hot dog
+pizza
+donut
+cake
+chair
+couch
+potted plant
+bed
+dining table
+toilet
+tv
+laptop
+mouse
+remote
+keyboard
+cell phone
+microwave
+oven
+toaster
+sink
+refrigerator
+book
+clock
+vase
+scissors
+teddy bear
+hair drier
+toothbrush"""
     
-    with open('sample_colors.txt', 'w') as f:
-        f.write(color_config)
+    with open('sample_classes_with_colors.txt', 'w') as f:
+        f.write(unified_config)
     
-    print("Created sample_colors.txt with color configuration")
-    return 'sample_colors.txt'
+    print("Created sample_classes_with_colors.txt with unified class names and colors")
+    return 'sample_classes_with_colors.txt'
 
 def create_sample_image(width=640, height=480):
     """Create a sample image with some geometric shapes"""
@@ -197,9 +254,9 @@ def main():
     class_file = create_sample_class_names()
     print(f"✓ Class names file: {class_file}")
     
-    # Create sample color configuration file
-    color_file = create_sample_color_config()
-    print(f"✓ Color configuration file: {color_file}")
+    # Create sample unified configuration file
+    color_file = create_sample_unified_config()
+    print(f"✓ Unified configuration file: {color_file}")
     
     # Create sample images
     create_sample_images()
@@ -218,7 +275,7 @@ def main():
     print("   - Creator name: 'Your Name'")
     print("   - Model file: your downloaded .pt file")
     print("   - Class names: sample_classes.txt")
-    print("   - Color configuration: sample_colors.txt")
+    print("   - Unified configuration: sample_classes_with_colors.txt")
     print("4. Upload images from sample_images/ directory")
     print("5. View results in the app!")
     print("="*60)

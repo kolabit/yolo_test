@@ -1,9 +1,10 @@
 # Unified Class Names and Colors Configuration
+# This file combines class names and colors in one format
 # Format: class_name:color (for custom colors)
 # Format: class_name (for default colors)
 # Lines starting with # are comments
 
-# Option 1: Class names with custom colors
+# Classes with custom colors
 person:red
 car:blue
 dog:green
@@ -15,14 +16,19 @@ truck:magenta
 bird:lime
 horse:pink
 
-# Option 2: Class names with default colors (uncomment to use)
-# sheep
-# cow
-# elephant
-# bear
-# zebra
-# giraffe
-# backpack
-# umbrella
-# handbag
-# tie 
+# Classes with default colors (will use colors from the default sequence)
+sheep
+cow
+elephant
+bear
+zebra
+giraffe
+backpack
+umbrella
+handbag
+tie
+suitcase
+frisbee
+skis
+snowboard
+sports ball 

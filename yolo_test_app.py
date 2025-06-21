@@ -167,6 +167,35 @@ def save_project_to_db(name, creator, model_file, class_names_file, color_config
     conn.close()
     return cursor.lastrowid
 
+def parse_unified_class_config(content):
+    """Parse unified class names and colors from content"""
+    class_names = []
+    color_map = {}
+    default_colors = get_default_colors()
+    
+    if not content:
+        return class_names, color_map
+    
+    lines = content.strip().split('\n')
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if line and not line.startswith('#'):
+            if ':' in line:
+                # Format: class_name:color
+                parts = line.split(':', 1)
+                class_name = parts[0].strip()
+                color = parts[1].strip()
+                class_names.append(class_name)
+                color_map[class_name] = color
+            else:
+                # Format: class_name (no color specified)
+                class_name = line
+                class_names.append(class_name)
+                # Use default color based on position
+                color_map[class_name] = default_colors[i % len(default_colors)]
+    
+    return class_names, color_map
+
 def get_all_projects():
     """Get all projects from database"""
     conn = sqlite3.connect('yolo_projects.db')
@@ -254,12 +283,19 @@ def process_image_with_yolo(image, model_path, class_names, color_config_content
         # Perform detection
         results = model(image)
         
-        # Get class names as list
-        class_names_list = [name.strip() for name in class_names.split('\n') if name.strip()]
+        # Parse unified class names and colors
+        class_names_list, color_map = parse_unified_class_config(class_names)
         
-        # Parse color configuration
-        color_map = parse_color_config(color_config_content)
-        default_colors = get_default_colors()
+        # If no colors specified, also check the old color config format
+        if not color_map and color_config_content:
+            old_color_map = parse_color_config(color_config_content)
+            color_map.update(old_color_map)
+        
+        # If still no colors, use default colors
+        if not color_map:
+            default_colors = get_default_colors()
+            for i, class_name in enumerate(class_names_list):
+                color_map[class_name] = default_colors[i % len(default_colors)]
         
         # Process results
         processed_image = image.copy()
@@ -304,6 +340,7 @@ def process_image_with_yolo(image, model_path, class_names, color_config_content
                         color = color_map[class_name]
                     else:
                         # Use default color based on class ID
+                        default_colors = get_default_colors()
                         color = default_colors[class_id % len(default_colors)]
                     
                     # Draw bounding box with thicker lines
@@ -411,13 +448,13 @@ def main():
                 with st.expander(f"{project[1]} (by {project[2]}) - Created: {project[5]}"):
                     st.write(f"**Project ID:** {project[0]}")
                     st.write(f"**Model:** {os.path.basename(project[3])}")
-                    st.write(f"**Class Names:**")
-                    class_names_preview = project[4][:100] + "..." if len(project[4]) > 100 else project[4]
-                    st.code(class_names_preview)
+                    st.write(f"**Class Names and Colors:**")
+                    class_config_preview = project[4][:200] + "..." if len(project[4]) > 200 else project[4]
+                    st.code(class_config_preview)
                     
-                    # Show color configuration if available
+                    # Show color configuration if available (for backward compatibility)
                     if len(project) > 5 and project[5]:
-                        st.write(f"**Color Configuration:**")
+                        st.write(f"**Legacy Color Config:**")
                         color_config_preview = project[5][:100] + "..." if len(project[5]) > 100 else project[5]
                         st.code(color_config_preview)
                     else:
@@ -447,31 +484,28 @@ def main():
                 help="Upload your custom-trained YOLO model in PyTorch format"
             )
             
-            st.subheader("Upload Class Names")
+            st.subheader("Upload Class Names and Colors")
             class_names_file = st.file_uploader(
-                "Upload Class Names File (.txt)",
+                "Upload Class Names and Colors File (.txt)",
                 type=['txt'],
-                help="Upload a text file with class names (one per line)"
+                help="Upload a text file with class names and optional colors"
             )
             
-            st.subheader("Upload Color Configuration (Optional)")
-            color_config_file = st.file_uploader(
-                "Upload Color Configuration File (.txt)",
-                type=['txt'],
-                help="Upload a text file with class colors (format: class_name:color, one per line)"
-            )
-            
-            if color_config_file:
-                st.info("**Color Configuration Format:**")
+            if class_names_file:
+                st.info("**File Format Options:**")
+                st.write("**Option 1 - Class names with colors:**")
                 st.code("person:red\ncar:blue\ndog:green\ncat:yellow")
+                st.write("**Option 2 - Class names only (default colors will be used):**")
+                st.code("person\ncar\ndog\ncat")
                 st.write("**Available colors:** red, blue, green, yellow, purple, orange, cyan, magenta, lime, pink, brown, gray, navy, olive, teal, maroon, fuchsia, aqua")
+                st.write("**Note:** Lines starting with # are treated as comments")
             
             submit_button = st.form_submit_button("Create Project")
             
             if submit_button:
                 if project_name and creator_name and model_file and class_names_file:
                     try:
-                        project_id = save_project_to_db(project_name, creator_name, model_file, class_names_file, color_config_file)
+                        project_id = save_project_to_db(project_name, creator_name, model_file, class_names_file)
                         st.success(f"Project '{project_name}' created successfully!")
                         st.info(f"Project ID: {project_id}")
                     except Exception as e:
@@ -502,11 +536,12 @@ def main():
         
         st.info(f"Selected Project: {selected_project[1]} | Model: {os.path.basename(model_path)}")
         
-        # Show color configuration info
-        if color_config:
-            st.info("🎨 Custom color configuration loaded for this project")
+        # Show class and color configuration info
+        class_names_list, color_map = parse_unified_class_config(class_names)
+        if color_map:
+            st.info(f"🎨 Loaded {len(class_names_list)} classes with custom colors")
         else:
-            st.info("🎨 Using default colors for bounding boxes")
+            st.info(f"🎨 Loaded {len(class_names_list)} classes with default colors")
         
         # Image upload
         uploaded_files = st.file_uploader(
@@ -735,17 +770,15 @@ def main():
                 with col1:
                     st.write(f"**Project ID:** {project[0]}")
                     st.write(f"**Model:** {os.path.basename(project[3])}")
-                    st.write(f"**Class Names:**")
-                    class_names_preview = project[4][:100] + "..." if len(project[4]) > 100 else project[4]
-                    st.code(class_names_preview)
+                    st.write(f"**Class Names and Colors:**")
+                    class_config_preview = project[4][:200] + "..." if len(project[4]) > 200 else project[4]
+                    st.code(class_config_preview)
                     
-                    # Show color configuration if available
+                    # Show color configuration if available (for backward compatibility)
                     if len(project) > 5 and project[5]:
-                        st.write(f"**Color Configuration:**")
+                        st.write(f"**Legacy Color Config:**")
                         color_config_preview = project[5][:100] + "..." if len(project[5]) > 100 else project[5]
                         st.code(color_config_preview)
-                    else:
-                        st.write("**Color Configuration:** Using default colors")
                 
                 with col2:
                     # Get image count for this project

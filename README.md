@@ -6,8 +6,7 @@ A comprehensive Streamlit application for managing custom-trained YOLO object de
 
 - **Project Management**: Create and manage multiple YOLO projects
 - **Custom Model Support**: Upload your own custom-trained YOLO models in PyTorch format
-- **Class Name Management**: Upload text files with custom class names
-- **Color Configuration**: Upload custom color mappings for bounding boxes
+- **Unified Class Configuration**: Upload a single file with class names and optional colors
 - **Image Processing**: Upload and process images with YOLO detection
 - **Database Storage**: All projects and images are stored in SQLite database
 - **Image Gallery**: View all processed images with detection results
@@ -39,20 +38,12 @@ A comprehensive Streamlit application for managing custom-trained YOLO object de
 1. Navigate to "Create Project" in the sidebar
 2. Enter project name and creator name
 3. Upload your custom-trained YOLO model (.pt file)
-4. Upload a text file with class names (one per line)
-5. **Optional**: Upload a color configuration file for custom bounding box colors
-6. Click "Create Project"
+4. Upload a unified class names and colors file (.txt)
+5. Click "Create Project"
 
-**Example class names file (classes.txt)**:
-```
-person
-car
-dog
-cat
-bicycle
-```
+**Unified Class Names and Colors File Format:**
 
-**Example color configuration file (colors.txt)**:
+**Option 1 - Class names with custom colors:**
 ```
 person:red
 car:blue
@@ -61,7 +52,31 @@ cat:yellow
 bicycle:purple
 ```
 
+**Option 2 - Class names only (default colors will be used):**
+```
+person
+car
+dog
+cat
+bicycle
+```
+
+**Option 3 - Mixed format (some with colors, some without):**
+```
+person:red
+car:blue
+dog:green
+cat
+bicycle:purple
+motorcycle
+```
+
 **Available colors**: red, blue, green, yellow, purple, orange, cyan, magenta, lime, pink, brown, gray, navy, olive, teal, maroon, fuchsia, aqua
+
+**Notes:**
+- Lines starting with `#` are treated as comments
+- If no color is specified for a class, default colors will be used in sequence
+- You can mix both formats in the same file
 
 ### 2. Upload and Process Images
 
