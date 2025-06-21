@@ -18,6 +18,47 @@ st.set_page_config(
     layout="wide"
 )
 
+# Handle OpenCV import with error handling
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError as e:
+    if "libGL.so.1" in str(e):
+        st.error("""
+        ⚠️ **OpenCV Library Error Detected**
+        
+        The application requires additional system libraries for OpenCV. Please install them using:
+        
+        ```bash
+        sudo apt update && sudo apt install -y libgl1-mesa-glx libglib2.0-0
+        ```
+        
+        Or if you're using a different Linux distribution:
+        
+        **Ubuntu/Debian:**
+        ```bash
+        sudo apt install libgl1-mesa-glx libglib2.0-0
+        ```
+        
+        **CentOS/RHEL/Fedora:**
+        ```bash
+        sudo yum install mesa-libGL
+        # or
+        sudo dnf install mesa-libGL
+        ```
+        
+        **Arch Linux:**
+        ```bash
+        sudo pacman -S mesa
+        ```
+        
+        After installing the libraries, restart the Streamlit app.
+        """)
+        YOLO_AVAILABLE = False
+    else:
+        st.error(f"Error importing YOLO: {e}")
+        YOLO_AVAILABLE = False
+
 # Database setup
 def init_database():
     """Initialize SQLite database with tables for projects and images"""
@@ -54,6 +95,45 @@ def init_database():
 
 # Initialize database
 init_database()
+
+def show_installation_instructions():
+    """Show installation instructions for missing dependencies"""
+    st.error("""
+    ⚠️ **System Dependencies Missing**
+    
+    The YOLO object detection functionality requires additional system libraries.
+    
+    **Quick Fix (Ubuntu/Debian):**
+    ```bash
+    sudo apt update && sudo apt install -y libgl1-mesa-glx libglib2.0-0
+    ```
+    
+    **Alternative Solutions:**
+    
+    1. **Install system libraries:**
+       - Ubuntu/Debian: `sudo apt install libgl1-mesa-glx libglib2.0-0`
+       - CentOS/RHEL: `sudo yum install mesa-libGL`
+       - Fedora: `sudo dnf install mesa-libGL`
+       - Arch: `sudo pacman -S mesa`
+    
+    2. **Use headless OpenCV (if you don't need GUI):**
+       ```bash
+       pip uninstall opencv-python
+       pip install opencv-python-headless
+       ```
+    
+    3. **Use Docker (recommended for consistent environment):**
+       ```bash
+       docker run -p 8501:8501 -v $(pwd):/app streamlit/streamlit:latest
+       ```
+    
+    After installing the libraries, restart the Streamlit app.
+    """)
+    
+    st.info("""
+    **Note:** This error occurs because OpenCV (used by YOLO) requires system graphics libraries.
+    The app will work normally once the dependencies are installed.
+    """)
 
 def save_project_to_db(name, creator, model_file, class_names_file):
     """Save project information to database"""
@@ -128,6 +208,10 @@ def delete_image_from_db(image_id):
 
 def process_image_with_yolo(image, model_path, class_names):
     """Process image with YOLO model and return detection results"""
+    if not YOLO_AVAILABLE:
+        st.error("YOLO is not available. Please install the required system libraries first.")
+        return image, []
+    
     try:
         # Load YOLO model
         model = YOLO(model_path)
@@ -194,7 +278,64 @@ def main():
     st.title("🔍 YOLO Object Detection App")
     st.markdown("---")
     
-    # Sidebar navigation
+    # Check if YOLO is available
+    if not YOLO_AVAILABLE:
+        st.warning("⚠️ YOLO functionality is not available due to missing system dependencies.")
+        show_installation_instructions()
+        
+        # Still allow users to view existing projects and images
+        st.header("📁 View Existing Data")
+        st.info("You can still view existing projects and images, but YOLO processing is disabled.")
+        
+        # Sidebar navigation (limited)
+        page = st.sidebar.selectbox(
+            "Navigation",
+            ["View Images", "Project Management"]
+        )
+        
+        if page == "View Images":
+            st.header("View Uploaded Images")
+            # ... existing view images code ...
+            projects = get_all_projects()
+            if not projects:
+                st.warning("No projects found.")
+                return
+            
+            project_options = {f"{p[1]} (by {p[2]})": p[0] for p in projects}
+            selected_project_name = st.selectbox("Select Project", list(project_options.keys()))
+            selected_project_id = project_options[selected_project_name]
+            
+            images = get_project_images(selected_project_id)
+            if not images:
+                st.info("No images found for this project.")
+                return
+            
+            st.subheader(f"Images for {selected_project_name}")
+            cols = st.columns(3)
+            for idx, image_data in enumerate(images):
+                col_idx = idx % 3
+                with cols[col_idx]:
+                    original_image = bytes_to_image(image_data[2])
+                    st.image(original_image, caption=f"Image {image_data[0]}", use_column_width=True)
+        
+        elif page == "Project Management":
+            st.header("Project Management")
+            projects = get_all_projects()
+            if not projects:
+                st.info("No projects found.")
+                return
+            
+            st.subheader("All Projects")
+            for project in projects:
+                with st.expander(f"{project[1]} (by {project[2]}) - Created: {project[5]}"):
+                    st.write(f"**Project ID:** {project[0]}")
+                    st.write(f"**Model:** {os.path.basename(project[3])}")
+                    images = get_project_images(project[0])
+                    st.metric("Images Processed", len(images))
+        
+        return
+    
+    # Sidebar navigation (full functionality when YOLO is available)
     page = st.sidebar.selectbox(
         "Navigation",
         ["Create Project", "Upload Images", "View Images", "Project Management"]

@@ -128,6 +128,47 @@ yolo_test/
 3. **CUDA errors**: If you don't have a GPU, the app will use CPU processing
 4. **Database errors**: Delete `yolo_projects.db` to reset the database
 
+### OpenCV Library Error (libGL.so.1)
+
+If you encounter the error `ImportError: libGL.so.1: cannot open shared object file`, this is a common OpenCV dependency issue on Linux systems.
+
+**Quick Fix:**
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install -y libgl1-mesa-glx libglib2.0-0
+
+# CentOS/RHEL
+sudo yum install mesa-libGL
+
+# Fedora
+sudo dnf install mesa-libGL
+
+# Arch Linux
+sudo pacman -S mesa
+```
+
+**Alternative Solutions:**
+
+1. **Use the provided fix script:**
+   ```bash
+   python fix_opencv_deps.py
+   ```
+
+2. **Use headless OpenCV (no GUI features):**
+   ```bash
+   pip uninstall opencv-python
+   pip install opencv-python-headless
+   ```
+
+3. **Use Docker (recommended for consistent environment):**
+   ```bash
+   docker run -p 8501:8501 -v $(pwd):/app streamlit/streamlit:latest
+   ```
+
+4. **The app will show helpful error messages** with specific instructions for your system.
+
+**Note:** The app includes built-in error handling and will show you exactly what to do when this error occurs.
+
 ### Performance Tips
 
 - Use smaller images for faster processing
