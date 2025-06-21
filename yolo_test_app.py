@@ -434,7 +434,7 @@ def main():
                 col_idx = idx % 3
                 with cols[col_idx]:
                     original_image = bytes_to_image(image_data[2])
-                    st.image(original_image, caption=f"Image {image_data[0]}", use_column_width=True)
+                    st.image(original_image, caption=f"Image {image_data[0]}", use_container_width=True)
         
         elif page == "Project Management":
             st.header("Project Management")
@@ -580,11 +580,11 @@ def main():
                     
                     with col1:
                         st.subheader("Original Image")
-                        st.image(image, caption=uploaded_file.name, use_column_width=True)
+                        st.image(image, caption=uploaded_file.name, use_container_width=True)
                     
                     with col2:
                         st.subheader("Processed Image")
-                        st.image(processed_image, caption=f"Detected {len(detection_results)} objects", use_column_width=True)
+                        st.image(processed_image, caption=f"Detected {len(detection_results)} objects", use_container_width=True)
                     
                     # Show detection details
                     if detection_results:
@@ -674,7 +674,7 @@ def main():
                 processed_image = bytes_to_image(image_data[3])
                 
                 # Display thumbnail
-                st.image(original_image, caption=f"Image {image_data[0]}", use_column_width=True)
+                st.image(original_image, caption=f"Image {image_data[0]}", use_container_width=True)
                 
                 # Button to view details
                 if st.button(f"View Details - Image {image_data[0]}", key=f"view_{image_data[0]}"):
@@ -694,11 +694,11 @@ def main():
             
             with col1:
                 st.subheader("Original Image")
-                st.image(original_image, use_column_width=True)
+                st.image(original_image, use_container_width=True)
             
             with col2:
                 st.subheader("Processed Image with Detections")
-                st.image(processed_image, use_column_width=True)
+                st.image(processed_image, use_container_width=True)
             
             # Show detection results
             if selected_image[4]:  # detection_results
