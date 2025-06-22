@@ -429,6 +429,7 @@ class ClassColorConfig(BaseModel):
     
     @validator('entries')
     def validate_unique_class_names(cls, v):
+        # validate class name for uniqueness
         class_names = [entry.class_name for entry in v]
         duplicates = [name for name in set(class_names) if class_names.count(name) > 1]
         if duplicates:
@@ -439,7 +440,8 @@ class ImageValidation(BaseModel):
     """Model for image validation"""
     file_name: str = Field(..., min_length=1, max_length=255)
     file_size: int = Field(..., gt=0, le=50*1024*1024)  # Max 50MB
-    file_type: str = Field(..., regex=r'\.(jpg|jpeg|png|bmp)$')
+    #file_type: str = Field(..., regex=r'\.(jpg|jpeg|png|bmp)$')
+    file_type: str = Field(..., pattern=r'\.(jpg|jpeg|png|bmp)$')
     image_width: int = Field(..., gt=0, le=10000)  # Max 10000px width
     image_height: int = Field(..., gt=0, le=10000)  # Max 10000px height
     
