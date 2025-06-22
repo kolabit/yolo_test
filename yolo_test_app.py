@@ -5,7 +5,7 @@ import io
 import base64
 from PIL import Image, ImageDraw, ImageFont
 import torch
-from ultralytics import YOLO
+#from ultralytics import YOLO
 import pandas as pd
 import numpy as np
 from datetime import datetime
