@@ -10,6 +10,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import tempfile
+from typing import List, Dict, Optional, Union
+from pydantic import BaseModel, Field, validator, ValidationError
+import re
 
 # Page configuration
 st.set_page_config(
@@ -391,6 +394,151 @@ def bytes_to_image(image_bytes):
     """Convert bytes to PIL image"""
     return Image.open(io.BytesIO(image_bytes))
 
+# Pydantic validation models
+class ClassColorEntry(BaseModel):
+    """Model for a single class-color entry"""
+    class_name: str = Field(..., min_length=1, max_length=100)
+    color: Optional[str] = Field(None, max_length=20)
+    
+    @validator('class_name')
+    def validate_class_name(cls, v):
+        if not v.strip():
+            raise ValueError('Class name cannot be empty')
+        # Remove any special characters that might cause issues
+        v = re.sub(r'[^\w\s-]', '', v.strip())
+        if not v:
+            raise ValueError('Class name must contain valid characters')
+        return v
+    
+    @validator('color')
+    def validate_color(cls, v):
+        if v is None:
+            return v
+        valid_colors = {
+            'red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan', 
+            'magenta', 'lime', 'pink', 'brown', 'gray', 'navy', 'olive', 
+            'teal', 'maroon', 'fuchsia', 'aqua'
+        }
+        if v.lower() not in valid_colors:
+            raise ValueError(f'Invalid color: {v}. Valid colors are: {", ".join(valid_colors)}')
+        return v.lower()
+
+class ClassColorConfig(BaseModel):
+    """Model for the entire class-color configuration file"""
+    entries: List[ClassColorEntry] = Field(..., min_items=1, max_items=1000)
+    
+    @validator('entries')
+    def validate_unique_class_names(cls, v):
+        class_names = [entry.class_name for entry in v]
+        duplicates = [name for name in set(class_names) if class_names.count(name) > 1]
+        if duplicates:
+            raise ValueError(f'Duplicate class names found: {", ".join(duplicates)}')
+        return v
+
+class ImageValidation(BaseModel):
+    """Model for image validation"""
+    file_name: str = Field(..., min_length=1, max_length=255)
+    file_size: int = Field(..., gt=0, le=50*1024*1024)  # Max 50MB
+    file_type: str = Field(..., regex=r'\.(jpg|jpeg|png|bmp)$')
+    image_width: int = Field(..., gt=0, le=10000)  # Max 10000px width
+    image_height: int = Field(..., gt=0, le=10000)  # Max 10000px height
+    
+    @validator('file_name')
+    def validate_file_name(cls, v):
+        if not v.strip():
+            raise ValueError('File name cannot be empty')
+        # Check for potentially dangerous characters
+        dangerous_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/']
+        if any(char in v for char in dangerous_chars):
+            raise ValueError(f'File name contains invalid characters: {dangerous_chars}')
+        return v.strip()
+    
+    @validator('file_type')
+    def validate_file_type(cls, v):
+        valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
+        if v.lower() not in valid_extensions:
+            raise ValueError(f'Invalid file type: {v}. Valid types are: {", ".join(valid_extensions)}')
+        return v.lower()
+
+def validate_class_color_file(content: str) -> tuple[bool, str, Optional[ClassColorConfig]]:
+    """Validate the class-color configuration file content"""
+    try:
+        # Parse the content
+        lines = content.strip().split('\n')
+        entries = []
+        
+        for i, line in enumerate(lines, 1):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                if ':' in line:
+                    # Format: class_name:color
+                    parts = line.split(':', 1)
+                    class_name = parts[0].strip()
+                    color = parts[1].strip()
+                    entries.append(ClassColorEntry(class_name=class_name, color=color))
+                else:
+                    # Format: class_name (no color)
+                    class_name = line
+                    entries.append(ClassColorEntry(class_name=class_name, color=None))
+        
+        if not entries:
+            return False, "No valid class entries found in file", None
+        
+        # Validate the entire configuration
+        config = ClassColorConfig(entries=entries)
+        return True, f"Valid configuration with {len(entries)} classes", config
+        
+    except ValidationError as e:
+        error_messages = []
+        for error in e.errors():
+            if error['type'] == 'value_error':
+                error_messages.append(error['msg'])
+            else:
+                error_messages.append(f"{error['loc'][0]}: {error['msg']}")
+        return False, f"Validation errors: {'; '.join(error_messages)}", None
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}", None
+
+def validate_image_file(uploaded_file) -> tuple[bool, str, Optional[ImageValidation]]:
+    """Validate uploaded image file"""
+    try:
+        # Check file name
+        file_name = uploaded_file.name
+        file_size = len(uploaded_file.getvalue())
+        
+        # Check file extension
+        file_ext = os.path.splitext(file_name)[1].lower()
+        
+        # Try to open and validate image
+        try:
+            image = Image.open(uploaded_file)
+            width, height = image.size
+            
+            # Reset file pointer for later use
+            uploaded_file.seek(0)
+            
+            # Create validation model
+            validation = ImageValidation(
+                file_name=file_name,
+                file_size=file_size,
+                file_type=file_ext,
+                image_width=width,
+                image_height=height
+            )
+            
+            return True, f"Valid image: {width}x{height}, {file_size/1024/1024:.1f}MB", validation
+            
+        except Exception as img_error:
+            return False, f"Invalid image format: {str(img_error)}", None
+            
+    except ValidationError as e:
+        error_messages = []
+        for error in e.errors():
+            error_messages.append(f"{error['loc'][0]}: {error['msg']}")
+        return False, f"Validation errors: {'; '.join(error_messages)}", None
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}", None
+
 # Main app
 def main():
     st.title("🔍 YOLO Object Detection App")
@@ -499,15 +647,57 @@ def main():
                 st.code("person\ncar\ndog\ncat")
                 st.write("**Available colors:** red, blue, green, yellow, purple, orange, cyan, magenta, lime, pink, brown, gray, navy, olive, teal, maroon, fuchsia, aqua")
                 st.write("**Note:** Lines starting with # are treated as comments")
+                
+                # Validate the uploaded file
+                try:
+                    content = class_names_file.read().decode('utf-8')
+                    class_names_file.seek(0)  # Reset file pointer
+                    
+                    is_valid, message, config = validate_class_color_file(content)
+                    
+                    if is_valid:
+                        st.success(f"✅ {message}")
+                        with st.expander("📋 Validation Details"):
+                            st.write(f"**Total Classes:** {len(config.entries)}")
+                            st.write(f"**Classes with Custom Colors:** {len([e for e in config.entries if e.color])}")
+                            st.write(f"**Classes with Default Colors:** {len([e for e in config.entries if not e.color])}")
+                            
+                            # Show class details
+                            st.write("**Class Details:**")
+                            for i, entry in enumerate(config.entries[:10]):  # Show first 10
+                                color_info = f" (Color: {entry.color})" if entry.color else " (Default color)"
+                                st.write(f"{i+1}. {entry.class_name}{color_info}")
+                            
+                            if len(config.entries) > 10:
+                                st.write(f"... and {len(config.entries) - 10} more classes")
+                    else:
+                        st.error(f"❌ {message}")
+                        st.warning("Please fix the validation errors before creating the project.")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error reading file: {str(e)}")
             
             submit_button = st.form_submit_button("Create Project")
             
             if submit_button:
                 if project_name and creator_name and model_file and class_names_file:
+                    # Validate the file before creating project
                     try:
+                        content = class_names_file.read().decode('utf-8')
+                        class_names_file.seek(0)  # Reset file pointer
+                        
+                        is_valid, message, config = validate_class_color_file(content)
+                        
+                        if not is_valid:
+                            st.error(f"❌ Validation failed: {message}")
+                            st.warning("Please fix the validation errors before creating the project.")
+                            return
+                        
                         project_id = save_project_to_db(project_name, creator_name, model_file, class_names_file)
                         st.success(f"Project '{project_name}' created successfully!")
                         st.info(f"Project ID: {project_id}")
+                        st.info(f"✅ Validated {len(config.entries)} classes")
+                        
                     except Exception as e:
                         st.error(f"Error creating project: {str(e)}")
                 else:
@@ -554,7 +744,44 @@ def main():
         if uploaded_files:
             st.subheader("Processing Images...")
             
-            for uploaded_file in uploaded_files:
+            # Validate all images first
+            valid_images = []
+            invalid_images = []
+            
+            with st.spinner("Validating uploaded images..."):
+                for uploaded_file in uploaded_files:
+                    is_valid, message, validation = validate_image_file(uploaded_file)
+                    if is_valid:
+                        valid_images.append((uploaded_file, validation))
+                    else:
+                        invalid_images.append((uploaded_file.name, message))
+            
+            # Show validation results
+            if invalid_images:
+                st.warning(f"⚠️ {len(invalid_images)} images failed validation:")
+                for file_name, error in invalid_images:
+                    st.write(f"• {file_name}: {error}")
+                st.write("Only valid images will be processed.")
+            
+            if valid_images:
+                st.success(f"✅ {len(valid_images)} images passed validation and will be processed.")
+                
+                # Show validation summary
+                with st.expander("📋 Image Validation Summary"):
+                    st.write(f"**Total Images:** {len(uploaded_files)}")
+                    st.write(f"**Valid Images:** {len(valid_images)}")
+                    st.write(f"**Invalid Images:** {len(invalid_images)}")
+                    
+                    if valid_images:
+                        st.write("**Valid Image Details:**")
+                        for i, (file, validation) in enumerate(valid_images[:5]):  # Show first 5
+                            st.write(f"{i+1}. {validation.file_name} ({validation.image_width}x{validation.image_height}, {validation.file_size/1024/1024:.1f}MB)")
+                        
+                        if len(valid_images) > 5:
+                            st.write(f"... and {len(valid_images) - 5} more images")
+            
+            # Process only valid images
+            for uploaded_file, validation in valid_images:
                 with st.spinner(f"Processing {uploaded_file.name}..."):
                     # Load image
                     image = Image.open(uploaded_file)
@@ -593,6 +820,9 @@ def main():
                         st.dataframe(detection_df)
                     
                     st.markdown("---")
+            
+            if not valid_images:
+                st.error("❌ No valid images to process. Please upload valid image files.")
     
     elif page == "View Images":
         st.header("View Uploaded Images")
@@ -673,7 +903,7 @@ def main():
                 original_image = bytes_to_image(image_data[2])
                 processed_image = bytes_to_image(image_data[3])
                 
-                # Display thumbnail
+                # Display thumbnails
                 st.image(original_image, caption=f"Image {image_data[0]}", use_container_width=True)
                 
                 # Button to view details

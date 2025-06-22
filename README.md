@@ -7,6 +7,7 @@ A comprehensive Streamlit application for managing custom-trained YOLO object de
 - **Project Management**: Create and manage multiple YOLO projects
 - **Custom Model Support**: Upload your own custom-trained YOLO models in PyTorch format
 - **Unified Class Configuration**: Upload a single file with class names and optional colors
+- **Data Validation**: Comprehensive validation using PyDantic for files and images
 - **Image Processing**: Upload and process images with YOLO detection
 - **Database Storage**: All projects and images are stored in SQLite database
 - **Image Gallery**: View all processed images with detection results
@@ -77,6 +78,38 @@ motorcycle
 - Lines starting with `#` are treated as comments
 - If no color is specified for a class, default colors will be used in sequence
 - You can mix both formats in the same file
+
+### Data Validation
+
+The app includes comprehensive data validation using PyDantic to ensure data integrity and prevent errors.
+
+#### Class Names and Colors File Validation:
+- **Class Name Validation**: Must be 1-100 characters, no special characters
+- **Color Validation**: Must be one of the 18 predefined colors
+- **Duplicate Detection**: No duplicate class names allowed
+- **File Size**: Maximum 1000 classes per file
+- **Format Validation**: Supports both `class_name:color` and `class_name` formats
+
+#### Image Validation:
+- **File Type**: Only JPG, JPEG, PNG, BMP files allowed
+- **File Size**: Maximum 50MB per image
+- **Dimensions**: Maximum 10000x10000 pixels
+- **File Name**: No dangerous characters allowed
+- **Image Format**: Must be a valid, readable image file
+
+#### Validation Tool:
+Use the standalone validation tool to check files before uploading:
+
+```bash
+# Validate class names and colors file
+python validation_tool.py class_file sample_classes_with_colors.txt
+
+# Validate a single image
+python validation_tool.py image sample_images/image1.jpg
+
+# Validate all images in a directory
+python validation_tool.py directory sample_images/
+```
 
 ### 2. Upload and Process Images
 
